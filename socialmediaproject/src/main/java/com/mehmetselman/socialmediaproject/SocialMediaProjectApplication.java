@@ -2,6 +2,7 @@ package com.mehmetselman.socialmediaproject;
 
 import com.mehmetselman.socialmediaproject.config.AuthFilter;
 import com.mehmetselman.socialmediaproject.entity.User;
+import com.mehmetselman.socialmediaproject.enums.Role;
 import com.mehmetselman.socialmediaproject.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,18 +28,8 @@ public class SocialMediaProjectApplication {
             User admin = new User();
             admin.setUsername("admin");
             admin.setPassword("admin123");
-            admin.setRole("ADMIN");
+            admin.setRole(Role.ADMIN);
             userRepository.save(admin);
         }
     }
-
-    @Bean
-    public FilterRegistrationBean<AuthFilter> authFilter(){
-        FilterRegistrationBean<AuthFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new AuthFilter());
-        registrationBean.addUrlPatterns("/api/*");
-        return registrationBean;
-
-    }
-
 }
