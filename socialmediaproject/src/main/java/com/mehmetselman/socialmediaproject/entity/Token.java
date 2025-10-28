@@ -1,31 +1,38 @@
 package com.mehmetselman.socialmediaproject.entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.ToString;
 
 import java.time.LocalDateTime;
 
+/**
+ * ✅ Token entity: JWT tabanlı oturum yönetimi için kullanılan access token'ları temsil eder.
+ *
+ * - Her kullanıcı birden fazla token’a sahip olabilir.
+ * - Token süresi dolduğunda AuthFilter kontrolüyle geçersiz hale gelir.
+ * - Lazy yükleme hataları ve JSON serialization problemleri giderildi.
+ */
 @Entity
 @Table(name = "token")
 @Data
-@ToString(exclude = "user")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class Token {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id; // Token ID
 
-    @Column(nullable = false, unique = true, length = 512)
-    private String token;
+    @Column(nullable = false, unique = true)
+    private String token; // JWT değeri
 
-    // 🧩 Her kullanıcı birden fazla token’a sahip olabilir (örneğin farklı cihazlardan giriş)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    @JsonBackReference
-    private User user;
+    @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"posts", "comments", "tokens", "hibernateLazyInitializer", "handler"})
+    private User user; // Token'ın ait olduğu kullanıcı
 
-    @Column(name = "expiry_date", nullable = false)
-    private LocalDateTime expiryDate;
+    private LocalDateTime expiryDate; // Token geçerlilik süresi
 }

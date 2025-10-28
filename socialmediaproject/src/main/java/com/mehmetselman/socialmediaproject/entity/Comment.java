@@ -1,31 +1,37 @@
 package com.mehmetselman.socialmediaproject.entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.ToString;
 
+/**
+ * ✅ Comment entity: Gönderilere yapılan yorumları temsil eder.
+ *
+ * - Lazy yükleme hatalarını önlemek için JsonIgnoreProperties eklendi.
+ * - Döngüsel JSON serialization hataları JsonIdentityInfo ile engellendi.
+ */
 @Entity
 @Table(name = "comment")
 @Data
-@ToString(exclude = {"author", "post"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class Comment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id; // Yorum ID
 
-    private String text;
+    private String text; // Yorum içeriği
 
-    // 🧩 Yorumu yazan kullanıcı
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "author_id", nullable = false)
-    @JsonBackReference // Sonsuz JSON döngüsünü önler
-    private User author;
+    @JoinColumn(name = "author_id")
+    @JsonIgnoreProperties({"posts", "comments", "tokens", "hibernateLazyInitializer", "handler"})
+    private User author; // Yorumu yapan kullanıcı
 
-    // 🧩 Yorumun ait olduğu post
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "post_id", nullable = false)
-    @JsonBackReference // Post -> Comment -> Post döngüsünü önler
-    private Post post;
+    @JoinColumn(name = "post_id")
+    @JsonIgnoreProperties({"comments", "likes", "hibernateLazyInitializer", "handler"})
+    private Post post; // Yorumun ait olduğu gönderi
 }

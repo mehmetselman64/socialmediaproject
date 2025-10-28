@@ -1,26 +1,46 @@
 package com.mehmetselman.socialmediaproject.service;
 
-import com.mehmetselman.socialmediaproject.entity.Like;
 import com.mehmetselman.socialmediaproject.entity.Post;
 import com.mehmetselman.socialmediaproject.entity.User;
-import com.mehmetselman.socialmediaproject.repository.LikeRepository;
 import com.mehmetselman.socialmediaproject.repository.PostRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
+/**
+ * ✅ PostService
+ *
+ * Bu servis, gönderiler (Post) ile ilgili tüm CRUD (oluşturma, okuma, güncelleme, silme)
+ * ve ek işlemleri yönetir.
+ *
+ * Sağladığı işlemler:
+ *  - Yeni post oluşturma
+ *  - Post getirme (tek veya tüm liste)
+ *  - Post güncelleme (sadece sahibi)
+ *  - Post silme (sahibi veya admin)
+ *  - Görüntülenme sayısını artırma
+ */
 @Service
 public class PostService {
 
     @Autowired
     private PostRepository postRepository;
 
-    @Autowired
-    private LikeRepository likeRepository;
-
-    //yeni gonderi olustur
-    public Post createPost(User author, String description, String imageUrl){
+    /**
+     * 🧩 Yeni bir gönderi oluşturur.
+     *
+     * - Post’a ait açıklama (description) ve resim (imageUrl) bilgileri atanır.
+     * - Gönderi oluşturan kullanıcı (author) ilişkilendirilir.
+     * - Veritabanına kaydedilip kaydedilen Post döndürülür.
+     *
+     * @param author      Gönderiyi oluşturan kullanıcı
+     * @param description Gönderi açıklaması
+     * @param imageUrl    Gönderi görsel bağlantısı
+     * @return Kaydedilen Post nesnesi
+     */
+    @Transactional
+    public Post createPost(User author, String description, String imageUrl) {
         Post post = new Post();
         post.setAuthor(author);
         post.setDescription(description);
@@ -28,64 +48,88 @@ public class PostService {
         return postRepository.save(post);
     }
 
-    //tek gonderi goruntule
-    public Post getPost(Long id){
-        return postRepository.findById(id).orElseThrow(() -> new RuntimeException("Gonderi bulunamadi!"));
+    /**
+     * 🧩 ID’ye göre gönderiyi getirir.
+     *
+     * - Eğer gönderi bulunamazsa hata fırlatır.
+     *
+     * @param id Gönderinin ID’si
+     * @return İstenen Post nesnesi
+     */
+    @Transactional
+    public Post getPost(Long id) {
+        return postRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Gönderi bulunamadı!"));
     }
 
-    //Tum gonderileri goruntule
-    public List<Post> getAllPosts(){
+    /**
+     * 🧩 Tüm gönderileri listeler.
+     *
+     * - Veritabanındaki tüm gönderiler döndürülür.
+     *
+     * @return Post listesi
+     */
+    @Transactional
+    public List<Post> getAllPosts() {
         return postRepository.findAll();
     }
 
-    //gonderi guncelleme
-    public void updatePost(Long id, User currentUser, String newDescription,String newImage ){
+    /**
+     * 🧩 Gönderiyi günceller.
+     *
+     * - Sadece gönderiyi oluşturan kullanıcı güncelleme yapabilir.
+     * - Açıklama ve görsel bağlantısı güncellenir.
+     *
+     * @param id          Güncellenecek gönderinin ID’si
+     * @param currentUser Şu anda giriş yapan kullanıcı
+     * @param description Yeni açıklama
+     * @param imageUrl    Yeni görsel bağlantısı
+     */
+    @Transactional
+    public void updatePost(Long id, User currentUser, String description, String imageUrl) {
         Post post = getPost(id);
-        if (!post.getAuthor().equals(currentUser) && !"ADMIN".equals(currentUser.getRole())) throw new RuntimeException("Bu islem icin yetkiniz yoktur!");
-        post.setDescription(newDescription);
-        post.setImageUrl(newImage);
+
+        // Sadece post sahibi güncelleyebilir
+        if (!post.getAuthor().getId().equals(currentUser.getId()))
+            throw new RuntimeException("Bu gönderiyi güncelleme yetkiniz yok!");
+
+        post.setDescription(description);
+        post.setImageUrl(imageUrl);
         postRepository.save(post);
     }
 
-    //gonderi silme
-    public void deletePost(Long id, User currentUser){
+    /**
+     * 🧩 Gönderiyi siler.
+     *
+     * - Sadece gönderinin sahibi veya admin olan kullanıcı silebilir.
+     *
+     * @param id          Silinecek gönderinin ID’si
+     * @param currentUser Şu anda giriş yapan kullanıcı
+     */
+    @Transactional
+    public void deletePost(Long id, User currentUser) {
         Post post = getPost(id);
-        if (!post.getAuthor().equals(currentUser) && !"ADMIN".equals(currentUser.getRole())) throw new RuntimeException("Bu islem icin yetkiniz yoktur!");
+
+        // Sadece sahibi veya ADMIN silebilir
+        if (!post.getAuthor().getId().equals(currentUser.getId())
+                && !"ADMIN".equals(currentUser.getRole().name())) {
+            throw new RuntimeException("Bu gönderiyi silme yetkiniz yok!");
+        }
+
         postRepository.delete(post);
     }
 
-    //goruntuleme sayisini artirir
-    public void viewPost(Long id){
+    /**
+     * 🧩 Görüntülenme sayısını artırır.
+     *
+     * - Her çağrıldığında post’un viewCount alanı 1 artırılır.
+     *
+     * @param id Görüntülenen gönderinin ID’si
+     */
+    @Transactional
+    public void viewPost(Long id) {
         Post post = getPost(id);
-        post.setViewCount(post.getViewCount()+1);
+        post.setViewCount(post.getViewCount() + 1);
         postRepository.save(post);
     }
-
-    //begeni sayisini artirir
-    public void likePost(Long postId, User user){
-        Post post = getPost(postId);
-        if (likeRepository.findByUserAndPost(user, post) != null ) throw new RuntimeException("Bu gonderiyi zaten begendiniz");
-        Like like = new Like();
-        like.setUser(user);
-        like.setPost(post);
-        likeRepository.save(like);
-        post.setLikeCount(post.getLikeCount()+1);
-        postRepository.save(post);
-
-    }
-
-    //begeniyi geri al
-    public void unlikePost(Long postId, User user){
-        Post post = getPost(postId);
-        Like like = likeRepository.findByUserAndPost(user, post);
-        if (like==null) throw new RuntimeException("Gonderi begenilmedi.");
-        likeRepository.delete(like);
-        post.setLikeCount(post.getLikeCount()-1);
-        postRepository.save(post);
-
-    }
-
-
-
-
 }

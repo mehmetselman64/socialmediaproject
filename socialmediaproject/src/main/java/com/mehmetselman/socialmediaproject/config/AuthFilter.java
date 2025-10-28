@@ -16,6 +16,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 
+/**
+ * 🔐 AuthFilter:
+ * Tüm /api/** isteklerinde JWT doğrulaması yapar.
+ * Eğer token geçersiz, süresi dolmuş veya eksikse 401 döner.
+ */
 @Component
 public class AuthFilter extends OncePerRequestFilter {
 
@@ -28,45 +33,58 @@ public class AuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
 
         String path = request.getRequestURI();
         System.out.println(">>> AuthFilter devrede: " + path);
-        System.out.println("Header Authorization: " + request.getHeader("Authorization"));
 
-        // Sadece login ve signup filtre dışı bırakılıyor
+        String authHeader = request.getHeader("Authorization");
+        System.out.println("Header Authorization: " + authHeader);
+
+        // 🔹 Login ve Signup işlemleri filtre dışı tutulur
         if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/signup")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = request.getHeader("Authorization");
-
-        if (token == null) {
+        // 🔹 Token yoksa veya format hatalıysa 401
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(401);
-            response.getWriter().write("{\"error\": \"Unauthorized - Missing token\"}");
+            response.getWriter().write("{\"error\": \"Unauthorized - Missing or invalid token\"}");
             return;
         }
 
-        // Fazladan "Bearer " varsa temizle
-        token = token.replace("Bearer ", "").trim();
+        // "Bearer " kısmını temizle
+        String token = authHeader.substring(7).trim();
         System.out.println("Token substring sonrası: " + token);
 
+        // 🔹 Token veritabanında var mı?
         Token dbToken = tokenRepository.findByToken(token);
-        System.out.println("DB’den gelen token: " + dbToken);
-        System.out.println("validateToken sonucu: " + JwtUtil.validateToken(token));
 
-        if (dbToken == null || dbToken.getExpiryDate().isBefore(LocalDateTime.now()) || !JwtUtil.validateToken(token)) {
+        if (dbToken == null) {
             response.setStatus(401);
-            response.getWriter().write("{\"error\": \"Invalid or expired token\"}");
+            response.getWriter().write("{\"error\": \"Token not found in database\"}");
             return;
         }
 
+        // 🔹 Token süresi dolmuş mu?
+        if (dbToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            response.setStatus(401);
+            response.getWriter().write("{\"error\": \"Token expired\"}");
+            return;
+        }
+
+        // 🔹 JWT yapısal olarak geçerli mi?
+        if (!JwtUtil.validateToken(token)) {
+            response.setStatus(401);
+            response.getWriter().write("{\"error\": \"Invalid JWT token\"}");
+            return;
+        }
+
+        // 🔹 Token’dan kullanıcı bilgisi çıkar
         String username = JwtUtil.getUsernameFromToken(token);
         User user = userRepository.findByUsername(username);
-
-        System.out.println("Token içinden çıkan username: " + username);
-        System.out.println("DB’den dönen user: " + user);
 
         if (user == null) {
             response.setStatus(401);
@@ -74,10 +92,15 @@ public class AuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // request'e kullanıcıyı ekle
+        // Debug log (toString yerine güvenli alanlar)
+        System.out.println("✅ Token sahibi kullanıcı: " + user.getUsername() + " (ID: " + user.getId() + ")");
+
+        // 🔹 Request’e kullanıcı nesnesini ekle (Controller’da kullanmak için)
         request.setAttribute("currentUser", user);
 
+        // Devam et
         filterChain.doFilter(request, response);
-        System.out.println("AuthFilter tamamlandı: " + request.getRequestURI());
+
+        System.out.println("AuthFilter tamamlandı: " + path);
     }
 }
